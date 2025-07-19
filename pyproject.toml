@@ -4,4 +4,11 @@ version = "0.1.0"
 description = "retail trading fun"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "ibapi",
+    "mypy>=1.17.0",
+    "ruff>=0.12.4",
+]
+
+[tool.uv.sources]
+ibapi = { path = ".twsapi/IBJts/source/pythonclient" }
