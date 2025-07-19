@@ -6,9 +6,26 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "ibapi",
+]
+
+[tool.mypy]
+packages="trading"
+
+[[tool.mypy.overrides]]
+module = [
+    "ibapi.*",
+]
+ignore_missing_imports = true
+
+[tool.uv.sources]
+ibapi = { path = ".twsapi/IBJts/source/pythonclient" }
+
+[dependency-groups]
+dev = [
     "mypy>=1.17.0",
     "ruff>=0.12.4",
 ]
 
-[tool.uv.sources]
-ibapi = { path = ".twsapi/IBJts/source/pythonclient" }
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

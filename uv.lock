@@ -73,16 +73,22 @@ wheels = [
 [[package]]
 name = "trading"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "ibapi" },
+]
+
+[package.dev-dependencies]
+dev = [
     { name = "mypy" },
     { name = "ruff" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "ibapi", directory = ".twsapi/IBJts/source/pythonclient" },
+requires-dist = [{ name = "ibapi", directory = ".twsapi/IBJts/source/pythonclient" }]
+
+[package.metadata.requires-dev]
+dev = [
     { name = "mypy", specifier = ">=1.17.0" },
     { name = "ruff", specifier = ">=0.12.4" },
 ]
