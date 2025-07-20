@@ -15,10 +15,14 @@ if [[ "$(basename "$PROJECT_ROOT")" != "trading" ]]; then
     exit 1
 fi
 
-VERSION="1030.01"
-DOWNLOAD_URL="https://interactivebrokers.github.io/downloads/twsapi_macunix.${VERSION}.zip"
-DOWNLOAD_FP="$PROJECT_ROOT/twsapi.zip"
-INSTALL_DIR="$PROJECT_ROOT/.twsapi"
+TWS_VERSION="1030.01"
+TWS_DOWNLOAD_URL="https://interactivebrokers.github.io/downloads/twsapi_macunix.${VERSION}.zip"
+TWS_DOWNLOAD_FP="$PROJECT_ROOT/twsapi.zip"
+TWS_INSTALL_DIR="$PROJECT_ROOT/.twsapi"
+
+CP_DOWNLOAD_URL="https://download2.interactivebrokers.com/portal/clientportal.gw.zip"
+CP_DOWNLOAD_FP="$PROJECT_ROOT/clientportal.gw.zip"
+CP_INSTALL_DIR="$PROJECT_ROOT/.clientportal"
 
 # check if curl is installed
 if ! command -v curl &> /dev/null; then
@@ -100,14 +104,20 @@ if ! command -v uv &> /dev/null; then
 fi
 
 echo "Downloading TWS API..."
-curl -L -o $DOWNLOAD_FP $DOWNLOAD_URL
+curl -L -o $TWS_DOWNLOAD_FP $TWS_DOWNLOAD_URL
 
 echo "Unzipping TWS API..."
-unzip -q -o $DOWNLOAD_FP -d $INSTALL_DIR
+unzip -q -o $TWS_DOWNLOAD_FP -d $TWS_INSTALL_DIR
 
-sudo chmod -R +x "$INSTALL_DIR/IBJts/source/pythonclient"
+sudo chmod -R +x "$TWS_INSTALL_DIR/IBJts/source/pythonclient"
 
-rm -rf $DOWNLOAD_FP
+echo "Downloading Client Portal..."
+curl -L -o $CP_DOWNLOAD_FP $CP_DOWNLOAD_URL
+
+echo "Unzipping Client Portal..."
+unzip -q -o $CP_DOWNLOAD_FP -d $CP_INSTALL_DIR
+
+rm -rf $TWS_DOWNLOAD_FP
 
 echo "Installing dependencies..."
 uv sync

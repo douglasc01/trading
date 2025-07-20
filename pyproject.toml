@@ -10,6 +10,9 @@ dependencies = [
 
 [tool.mypy]
 packages="trading"
+exclude = [
+    "old",
+]
 
 [[tool.mypy.overrides]]
 module = [
@@ -17,11 +20,28 @@ module = [
 ]
 ignore_missing_imports = true
 
+[tool.ruff]
+line-length = 120
+extend-exclude = [
+    "notebooks",
+    "old",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "W",
+    "I",
+    "UP",
+]
+
 [tool.uv.sources]
 ibapi = { path = ".twsapi/IBJts/source/pythonclient" }
 
 [dependency-groups]
 dev = [
+    "ipykernel>=6.29.5",
     "mypy>=1.17.0",
     "ruff>=0.12.4",
 ]

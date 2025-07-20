@@ -1,13 +1,13 @@
 default: lint-all
 
 mypy:
-    uv run mypy --sqlite-cache
+    uv run mypy --sqlite-cache .
 
 format:
     uv run ruff format
 
 lint:
-    uv run ruff check
+    uv run ruff check --fix
 
 lint-all: format lint mypy
 
