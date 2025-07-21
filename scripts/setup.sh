@@ -16,7 +16,7 @@ if [[ "$(basename "$PROJECT_ROOT")" != "trading" ]]; then
 fi
 
 TWS_VERSION="1030.01"
-TWS_DOWNLOAD_URL="https://interactivebrokers.github.io/downloads/twsapi_macunix.${VERSION}.zip"
+TWS_DOWNLOAD_URL="https://interactivebrokers.github.io/downloads/twsapi_macunix.${TWS_VERSION}.zip"
 TWS_DOWNLOAD_FP="$PROJECT_ROOT/twsapi.zip"
 TWS_INSTALL_DIR="$PROJECT_ROOT/.twsapi"
 
@@ -117,7 +117,7 @@ curl -L -o $CP_DOWNLOAD_FP $CP_DOWNLOAD_URL
 echo "Unzipping Client Portal..."
 unzip -q -o $CP_DOWNLOAD_FP -d $CP_INSTALL_DIR
 
-rm -rf $TWS_DOWNLOAD_FP
+rm -rf $TWS_DOWNLOAD_FP $CP_DOWNLOAD_FP
 
 echo "Installing dependencies..."
 uv sync
