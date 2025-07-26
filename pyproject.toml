@@ -10,8 +10,8 @@ dependencies = [
 
 [tool.mypy]
 packages="trading"
-exclude = [
-    "old",
+disable_error_code = [
+    "union-attr",
 ]
 
 [[tool.mypy.overrides]]
@@ -24,7 +24,6 @@ ignore_missing_imports = true
 line-length = 120
 extend-exclude = [
     "notebooks",
-    "old",
 ]
 
 [tool.ruff.lint]
