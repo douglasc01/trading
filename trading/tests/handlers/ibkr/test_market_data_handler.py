@@ -243,8 +243,8 @@ class TestMarketDataHandler:
         request_id = 123
         test_data = [ScannerData(rank=1, contract_details=Mock(), legs_str="")]
 
-        with market_data_handler._lock:
-            market_data_handler._realtime_responses[request_id].response.append(test_data)
+        with market_data_handler._realtime_responses[request_id].lock:
+            market_data_handler._realtime_responses[request_id].response.append(test_data[0])
 
         result = market_data_handler.fetch_scanner_data(request_id)
         assert result == test_data
