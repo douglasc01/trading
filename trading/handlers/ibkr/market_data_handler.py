@@ -31,21 +31,6 @@ class MarketDataHandler(Handler):
         self._window_length = window_length
         self._realtime_responses: defaultdict[int, MarketDataRequestManager] = defaultdict(MarketDataRequestManager)
 
-    def _initialize_realtime_response(self, key: int, window_length: int = 10) -> None:
-        """Initializes a new realtime response manager"""
-        with self._lock:
-            self._realtime_responses[key] = MarketDataRequestManager(window_length)
-
-    def _store_realtime_response(self, key: int, response: Any) -> None:
-        """Appends the response to the realtime deque"""
-        with self._realtime_responses[key].lock:
-            self._realtime_responses[key].response.append(response)
-
-    def fetch_realtime_response(self, key: int) -> Any:
-        """Fetches the realtime response as a snapshot of the deque"""
-        with self._realtime_responses[key].lock:
-            return list(self._realtime_responses[key].response)
-
     def request_tick_by_tick_data(
         self,
         request: TickByTickDataRequest,
@@ -59,9 +44,133 @@ class MarketDataHandler(Handler):
             ignore_change_in_size=request.ignore_change_in_size,
         )
 
+    def fetch_realtime_response(self, key: int) -> Any:
+        """Fetches the realtime response as a snapshot of the deque"""
+        with self._realtime_responses[key].lock:
+            return list(self._realtime_responses[key].response)
+
     def cancel_tick_by_tick_data(self, request_id: int) -> None:
         """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#cancel-tick-data"""
         self.client.cancelTickByTickData(request_id)
+
+    def request_realtime_bars(
+        self,
+        request: RealtimeBarRequest,
+    ) -> None:
+        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#request-live-bars"""
+        self.client.reqRealTimeBars(
+            reqId=request.request_id,
+            contract=request.contract,
+            barSize=request.bar_size,
+            whatToShow=request.bar_type.value,
+            useRTH=not request.extended_hours,
+            realTimeBarsOptions=[],
+        )
+
+    def cancel_realtime_bars(self, request_id: int) -> None:
+        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#cancel-live-bars"""
+        self.client.cancelRealTimeBars(request_id)
+
+    def request_historical_data(
+        self,
+        request: HistoricalDataRequest,
+        window_length: int = 10,
+    ) -> list[Bar] | None:
+        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#request-historical-data
+
+        Args:
+            request (HistoricalDataRequest): The request to fetch historical data for
+            window_length (int, optional): The window length to use for the historical data. Defaults to 10.
+
+        Returns:
+            list[Bar] | None: The historical data or None if the request is keep_up_to_date
+        """
+        LOGGER.info(f"Requesting historical data: {request}")
+        if request.keep_up_to_date:
+            self._initialize_keep_up_to_date_bars(request.request_id, window_length)
+            self.client.reqHistoricalData(
+                reqId=request.request_id,
+                contract=request.contract,
+                endDateTime=request.end_datetime.strftime("%Y%m%d %H:%M:%S %Z") if request.end_datetime else "",
+                durationStr=request.time_period,
+                barSizeSetting=request.bar_size,
+                whatToShow=request.bar_type.value,
+                useRTH=not request.extended_hours,
+                formatDate=request.date_format.value,
+                keepUpToDate=request.keep_up_to_date,
+                chartOptions=[],
+            )
+            return None
+        else:
+            self._initialize_chain_response(request.request_id)
+            self.client.reqHistoricalData(
+                reqId=request.request_id,
+                contract=request.contract,
+                endDateTime=request.end_datetime.strftime("%Y%m%d %H:%M:%S %Z") if request.end_datetime else "",
+                durationStr=request.time_period,
+                barSizeSetting=request.bar_size,
+                whatToShow=request.bar_type.value,
+                useRTH=not request.extended_hours,
+                formatDate=request.date_format.value,
+                keepUpToDate=request.keep_up_to_date,
+                chartOptions=[],
+            )
+            response = self._wait_for_response(request.request_id, timeout=120)
+            self._delete_response(request.request_id)
+            return response
+
+    def cancel_historical_data(self, request_id: int) -> None:
+        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#cancel-historical-data
+        Cancels a historical data request
+
+        Args:
+            request_id (int): The request id to cancel the historical data for
+        """
+        self.client.cancelHistoricalData(request_id)
+
+    def fetch_historical_data(self, request_id: int) -> list[Bar]:
+        """Fetches the historical data as a snapshot of the deque
+
+        Args:
+            request_id (int): The request id to fetch the historical data for
+
+        Returns:
+            list[Bar]: The historical data
+        """
+        with self._responses[request_id].lock:
+            return list(self._responses[request_id].response)
+
+    def request_scanner_parameters(self) -> None:
+        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#request-scanner-parameters"""
+        self.client.reqScannerParameters()
+
+    def request_scanner(
+        self,
+        request: ScannerRequest,
+    ) -> None:
+        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#request-scanner-subscription"""
+        self._initialize_realtime_response(
+            request.request_id,
+            window_length=request.subscription.numberOfRows if request.subscription.numberOfRows != -1 else 50,
+        )
+        self.client.reqScannerSubscription(request.request_id, request.subscription, [], request.filters)
+
+    def cancel_scanner(self, request_id: int) -> None:
+        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#cancel-scanner-subscription"""
+        self.client.cancelScannerSubscription(request_id)
+
+    def fetch_scanner_data(self, request_id: int) -> list[ScannerData]:
+        return self.fetch_realtime_response(request_id)
+
+    def _initialize_realtime_response(self, key: int, window_length: int = 10) -> None:
+        """Initializes a new realtime response manager"""
+        with self._lock:
+            self._realtime_responses[key] = MarketDataRequestManager(window_length)
+
+    def _store_realtime_response(self, key: int, response: Any) -> None:
+        """Appends the response to the realtime deque"""
+        with self._realtime_responses[key].lock:
+            self._realtime_responses[key].response.append(response)
 
     def _on_tick_by_tick_all_last(
         self,
@@ -124,24 +233,6 @@ class MarketDataHandler(Handler):
         )
         self._store_realtime_response(request_id, tick)
 
-    def request_realtime_bars(
-        self,
-        request: RealtimeBarRequest,
-    ) -> None:
-        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#request-live-bars"""
-        self.client.reqRealTimeBars(
-            reqId=request.request_id,
-            contract=request.contract,
-            barSize=request.bar_size,
-            whatToShow=request.bar_type.value,
-            useRTH=not request.extended_hours,
-            realTimeBarsOptions=[],
-        )
-
-    def cancel_realtime_bars(self, request_id: int) -> None:
-        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#cancel-live-bars"""
-        self.client.cancelRealTimeBars(request_id)
-
     def _on_realtime_bar(
         self,
         request_id: int,
@@ -165,58 +256,11 @@ class MarketDataHandler(Handler):
     def _store_keep_up_to_date_bar(self, key: int, response: Bar) -> None:
         request_manager = self._responses[key]
         with request_manager.lock:
-            if response.time == request_manager.response[-1].time:
+            if request_manager.response and response.time == request_manager.response[-1].time:
                 request_manager.response.pop()
                 request_manager.response.append(response)
             else:
                 request_manager.response.append(response)
-
-    def request_historical_data(
-        self,
-        request: HistoricalDataRequest,
-        window_length: int = 10,
-    ) -> list[Bar] | None:
-        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#request-historical-data"""
-        LOGGER.info(f"Requesting historical data: {request}")
-        if request.keep_up_to_date:
-            self._initialize_keep_up_to_date_bars(request.request_id, window_length)
-            self.client.reqHistoricalData(
-                reqId=request.request_id,
-                contract=request.contract,
-                endDateTime=request.end_datetime.strftime("%Y%m%d %H:%M:%S %Z") if request.end_datetime else "",
-                durationStr=request.time_period,
-                barSizeSetting=request.bar_size,
-                whatToShow=request.bar_type.value,
-                useRTH=not request.extended_hours,
-                formatDate=request.date_format.value,
-                keepUpToDate=request.keep_up_to_date,
-                chartOptions=[],
-            )
-            return None
-        else:
-            self._initialize_chain_response(request.request_id)
-            self.client.reqHistoricalData(
-                reqId=request.request_id,
-                contract=request.contract,
-                endDateTime=request.end_datetime.strftime("%Y%m%d %H:%M:%S %Z") if request.end_datetime else "",
-                durationStr=request.time_period,
-                barSizeSetting=request.bar_size,
-                whatToShow=request.bar_type.value,
-                useRTH=not request.extended_hours,
-                formatDate=request.date_format.value,
-                keepUpToDate=request.keep_up_to_date,
-                chartOptions=[],
-            )
-            response = self._wait_for_response(request.request_id)
-            self._delete_response(request.request_id)
-            return response
-
-    def cancel_historical_data(self, request_id: int) -> None:
-        self.client.cancelHistoricalData(request_id)
-
-    def fetch_historical_data(self, request_id: int) -> list[Bar]:
-        with self._responses[request_id].lock:
-            return list(self._responses[request_id].response)
 
     def _on_historical_data(
         self,
@@ -270,34 +314,12 @@ class MarketDataHandler(Handler):
     ) -> None:
         self._end_chain_response(request_id)
 
-    def request_scanner_parameters(self) -> None:
-        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#request-scanner-parameters"""
-        self.client.reqScannerParameters()
-
     def _on_scanner_parameters(self, xml: str) -> None:
         scanner_params_path = os.path.join(os.path.dirname(__file__), "../..", "scanner_parameters.xml")
         scanner_params_path = os.path.abspath(scanner_params_path)
         with open(scanner_params_path, "w") as f:
             f.write(xml)
         LOGGER.info("Received scanner parameters.")
-
-    def request_scanner(
-        self,
-        request: ScannerRequest,
-    ) -> None:
-        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#request-scanner-subscription"""
-        self._initialize_realtime_response(
-            request.request_id,
-            window_length=request.subscription.numberOfRows if request.subscription.numberOfRows != -1 else 50,
-        )
-        self.client.reqScannerSubscription(request.request_id, request.subscription, [], request.filters)
-
-    def cancel_scanner(self, request_id: int) -> None:
-        """https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/#cancel-scanner-subscription"""
-        self.client.cancelScannerSubscription(request_id)
-
-    def fetch_scanner_data(self, request_id: int) -> list[ScannerData]:
-        return self.fetch_realtime_response(request_id)
 
     def _on_scanner_data(
         self,

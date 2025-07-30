@@ -93,6 +93,21 @@ class OrderHandler(Handler):
         LOGGER.info("Requesting global cancel")
         self.client.reqGlobalCancel()
 
+    def fetch_order_status(self, order_id: int) -> bool:
+        """Fetches the order status for a given order id
+
+        Args:
+            order_id (int): The order id to fetch the status for
+
+        Returns:
+            bool: True if an open order exists for the given order id, False otherwise
+        """
+        with self._lock:
+            if order_id not in self._responses:
+                return False
+            else:
+                return True
+
     def _on_order_status(
         self,
         order_id: int,
@@ -114,10 +129,3 @@ class OrderHandler(Handler):
         )
         if remaining == 0:
             self._delete_response(order_id)
-
-    def fetch_order_status(self, order_id: int) -> bool:
-        with self._lock:
-            if order_id not in self._responses:
-                return False
-            else:
-                return True
